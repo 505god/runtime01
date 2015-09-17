@@ -8,6 +8,8 @@
 
 #import "BaseModelObject.h"
 
+#import <objc/runtime.h>
+
 @implementation BaseModelObject
 
 + (instancetype)modelWithDictionary: (NSDictionary *) data{
@@ -22,6 +24,33 @@
         }
         return self;
     }
+}
+
+///通过运行时获取当前对象的所有属性的名称，以数组的形式返回
+- (NSArray *) allPropertyNames{
+    ///存储所有的属性名称
+    NSMutableArray *allNames = [[NSMutableArray alloc] init];
+    
+    ///存储属性的个数
+    unsigned int propertyCount = 0;
+    
+    ///通过运行时获取当前类的属性
+    objc_property_t *propertys = class_copyPropertyList([self class], &propertyCount);
+    
+    //把属性放到数组中
+    for (int i = 0; i < propertyCount; i ++) {
+        ///取出第一个属性
+        objc_property_t property = propertys[i];
+        
+        const char * propertyName = property_getName(property);
+        
+        [allNames addObject:[NSString stringWithUTF8String:propertyName]];
+    }
+    
+    ///释放
+    free(propertys);
+    
+    return allNames;
 }
 
 #pragma mark -- 通过字符串来创建该字符串的Setter方法，并返回
@@ -53,19 +82,21 @@
     ///赋值给实体类的属性
     for (int i = 0; i < dicKey.count; i ++) {
         
-        ///2.1 通过getSetterSelWithAttibuteName 方法来获取实体类的set方法
-        SEL setSel = [self creatSetterWithPropertyName:dicKey[i]];
-        
-        if ([self respondsToSelector:setSel]) {
-            ///2.2 获取字典中key对应的value
-            NSString  *value = [NSString stringWithFormat:@"%@", data[dicKey[i]]];
+        ///属性的存在
+        if ([[self allPropertyNames]containsObject:dicKey[i]]) {
+            ///2.1 通过getSetterSelWithAttibuteName 方法来获取实体类的set方法
+            SEL setSel = [self creatSetterWithPropertyName:dicKey[i]];
             
-            ///2.3 把值通过setter方法赋值给实体类的属性
-            [self performSelectorOnMainThread:setSel
-                                   withObject:value
-                                waitUntilDone:[NSThread isMainThread]];
+            if ([self respondsToSelector:setSel]) {
+                ///2.2 获取字典中key对应的value
+                NSString  *value = [NSString stringWithFormat:@"%@", data[dicKey[i]]];
+                
+                ///2.3 把值通过setter方法赋值给实体类的属性
+                [self performSelectorOnMainThread:setSel
+                                       withObject:value
+                                    waitUntilDone:[NSThread isMainThread]];
+            }
         }
-        
     }
     
 }
